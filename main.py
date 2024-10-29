@@ -69,5 +69,7 @@ if __name__ == "__main__":
     else:
         # for optional system path
         config_path = sys.argv[1]
+        
+    print(config_path)
 
     main(config_path)

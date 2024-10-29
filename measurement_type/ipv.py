@@ -69,6 +69,8 @@ def ipv_main(IPV_config: dict, DC_config: dict, P_config: dict):
     DC_unit.set_current(0.0)
     DC_unit.set_voltage_limit(V_max)
     DC_unit.set_output(True)
+    
+    print(interval_list)
 
     # The main measurement loop
     try:
@@ -90,6 +92,7 @@ def ipv_main(IPV_config: dict, DC_config: dict, P_config: dict):
                 Results["voltage"].append(volt)
                 Results["current"].append(current)
                 Results["power"].append(power)
+                
                 Plot.add_point(current, power)
                 print("IPV data", volt, current, power)
 
@@ -99,6 +102,7 @@ def ipv_main(IPV_config: dict, DC_config: dict, P_config: dict):
                 if power > rollover_min:
                     power_max = max(power, power_max)
                 if power < (rollover_threshold * power_max) and rollover_threshold:
+                    print('hej')
                     break
             Plot.update()
 
@@ -117,5 +121,6 @@ def ipv_main(IPV_config: dict, DC_config: dict, P_config: dict):
 
     print("IPV measurements done. Keeping plot alive for your convenience.")
     Plot.keep_open()
+
 
     return Results
