@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 import warnings
+import math
 
 
 def argument_checker(
@@ -12,6 +13,7 @@ def argument_checker(
     source_func="",
 ):
     # Behavior:
+    # Checks if supplied dict contains required keys
     # If extra parameter is found, warn user but continue program
     # If parameter missing, raise exception
 
@@ -46,61 +48,87 @@ def optional_arguments_merge(config: dict = dict(), optional_default=dict()):
     return out_dict
 
 
+def list_number_recaster(input: list | float) -> list | float:
+    # Recursivly tries to convert strings to floats in a list
+    # [1, "2"] -> [1, 2]
+    if type(input) == float or type(input) == int:
+        output = input
+    elif type(input) == str:
+        output = float(input)
+    elif type(input) == list or type(input) == tuple:
+        output = []
+        for element in input:
+            output.append(list_number_recaster(element))
+
+        # Recast to tuple if input
+        if type(input) == tuple:
+            output = tuple(output)
+
+    return output
+
+
 def interval_2_points(specification: list[list]) -> list:
-    # Takes in list [[A, x, B],[C, y, D]] and returns a list of points.
-    # Output: [[A, A+x, ..., B], [C, C+y, ..., D]]
-    # Also accepts single value
+    # Takes in list [[A, x, B], [C, y, D], P] and returns a list of points.
+    # Output: [[A, A+x, ..., B], [C, C+y, ..., D], [P]]
+    # Also accepts single point outside of list P -> [[P]]
+
+    # Convert strings to floats if possible
+    specification = list_number_recaster(specification)
 
     if type(specification) == float or type(specification) == int:
         # Handles case where specification is number
         out_list = [[specification]]
         return out_list
-
-    elif (
-        type(specification[0]) == float
-        or type(specification[0]) == int
-        and len(specification) == 1
-    ):
-        # Handles case where specification is number in list
-        out_list = [[specification[0]]]
-        return out_list
-
-    elif type(specification[0]) != list:
-        # print(f"Warning: Interval specification {specification} not list of lists.")
-        if len(specification) == 3:
-            # print("Attempting inteval fix.")
-            # Fix error not list of list, by putting in list
-            specification = [specification]
-        else:
-            raise Exception(
-                f"Interval specification {specification} not list and not length 3."
-            )
+    elif type(specification) != list:
+        raise TypeError(
+            f"Interval specification {specification} neither list nor number"
+        )
 
     points = []
-    for pairs in specification:
-        if type(pairs) != list:
-            # Checks if sublist is list
-            raise Exception(f"Interval sub-specification {pairs} not list")
-        elif len(pairs) != 3:
-            # Check if every sub-interval specified correct
-            raise Exception(f"Interval sub-specification {pairs} not length 3.")
+    for sub_specification in specification:
+        if type(sub_specification) == float or type(sub_specification) == int:
+            sub_interval = [sub_specification]
+        elif type(sub_specification) == list:
+            if len(sub_specification) != 3:
+                # Check if every sub-interval specified correct
+                raise TypeError(
+                    f"Interval sub-specification {sub_specification} not length 3."
+                )
 
-        start = pairs[0]
-        delta = pairs[1]
-        end = pairs[2]
+            # Extract the values
+            start = sub_specification[0]
+            delta = sub_specification[1]
+            end = sub_specification[2]
 
-        if abs(start - end) <= delta:
-            # Handles case where points are closer then shortest distance
-            sub_interval = np.array([start, end])
+            for value in (start, delta, end):
+                # Check if they are valid type
+                if type(value) != float and type(value) != int:
+                    raise TypeError(
+                        f"Interval sub-specification {sub_specification} component {value} not number"
+                    )
+
+            if start == end:
+                # If start and end are same point, don't create duplicate
+                sub_interval = [start]
+            elif abs(start - end) <= delta:
+                # If points are too close, add them anyways
+                sub_interval = [start, end]
+            else:
+                # Create arranged list if nothing special
+                sub_interval = list(np.arange(start, end, delta))
+
+            # Post-processing
+            if end not in sub_interval:
+                # Add end point if not in specification
+                sub_interval.append(end)
+
         else:
-            sub_interval = np.arange(start, end, delta)
+            raise TypeError(
+                f"Interval sub-specification {sub_specification} in specification {specification} neither list nor number"
+            )
 
-        if end not in sub_interval:
-            # Adds end point if not in interavl
-            sub_interval = np.append(sub_interval, end)
-
+        # Add sub_interval to point result
         points.append(sub_interval)
-
     return points
 
 
@@ -108,20 +136,13 @@ def ramp_current(DC_supply, start, stop, step=10):
     # Ramps up/down current to/from given values for a supplied DC_unit
     current_steps = np.linspace(start, stop, step)
 
+    # If start and stop are same, skip ramp
+    if start == stop:
+        return None
+
     for current in current_steps:
         DC_supply.set_current(current)
         time.sleep(50 * 1e-3)  # 50 ms
-
-
-def signed_bits2int(input: str, endian="big") -> int:
-    if endian == "small":  # Make big endian
-        input = input[::-1]
-
-    output = int(input[1:], 2)  # Select all normal bits and convert to int
-    no_of_bits = len(input)
-    if input[0] == "1":
-        output -= 2 ** (no_of_bits - 1)  # The signed byte represents -2**15 in 16 bits
-    return int(output)
 
 
 def dict_2_lower(indict: dict) -> dict:
@@ -139,6 +160,99 @@ def dict_2_lower(indict: dict) -> dict:
             out_value = value.lower() if type(value) == str else value
             out_dict[out_key] = out_value
     return out_dict
+
+
+def create_save_list(result_dict: dict) -> tuple[list[list], str]:
+    result_matrix = []
+    keys = list(result_dict.keys())
+    no_of_points = len(result_dict[keys[0]])  # How many rows there are
+
+    if no_of_points == 0:
+        print("No data to save. Probably Ctrl+C too early.")
+        return [], ""  # Probably bad error behavior
+
+    for i in range(no_of_points):
+        row = []
+        for key in keys:
+            item = result_dict[key][i]
+
+            if type(item) is list:
+                row += item
+            else:
+                row.append(item)
+        result_matrix.append(row)
+
+    result_headers = []
+    for key in keys:
+        data = result_dict[key][0]
+
+        length = ""
+        if type(data) is list:
+            length = "(" + str(len(data)) + ")"
+
+        result_headers.append(key + length)
+    header_string = " ".join(result_headers)
+
+    return result_matrix, header_string
+
+
+def closest_matcher(
+    data: float,
+    accepted_vals: list,
+    round_type: str = "up",
+    msg: str = "",
+):
+    # Function checks if value is accepted, and tries to round it if possible
+
+    # If string, recast to number
+    data = list_number_recaster(data)
+    accepted_vals = list_number_recaster(accepted_vals)
+
+    if msg:
+        # Set message if not empty
+        msg = " in " + msg
+
+    max_val = max(accepted_vals)
+    min_val = min(accepted_vals)
+
+    # If exact mode enabled, rasie exception if not in set
+    if round_type.lower() == "exact" and data not in accepted_vals:
+        raise Exception(
+            f"{data} not a valid value{msg}. Please pick among {accepted_vals}."
+        )
+
+    # If data bigger than all accepted
+    elif data > max_val:
+        print(f"Warning: {data} larger than accepted{msg}, using {max_val} instead.")
+        return max_val
+    elif data < min_val:
+        print(f"Warning: {data} smaller than accepted{msg}, using {min_val} instead.")
+        return min_val
+
+    # If not in list, round up to closest value in list
+    elif data not in accepted_vals:
+
+        match round_type.lower():
+            case "up":
+                custom_key = lambda x: math.inf if x - data < 0 else x - data
+            case "down":
+                custom_key = lambda x: math.inf if x - data > 0 else data - x
+            case "regularly":
+                custom_key = lambda x: abs(x - data)
+            case _:
+                raise Exception(
+                    f"closest_matcher unknown round_type {round_type}{msg} detected."
+                )
+        data_old = data
+        data = min(accepted_vals, key=custom_key)
+        print(
+            f"Warning: {data_old} not accepted{msg}, rounding {round_type} to {data}."
+        )
+        return data
+
+    # Return the same if nothing changed
+    else:
+        return data
 
 
 class AnimatedPlot:

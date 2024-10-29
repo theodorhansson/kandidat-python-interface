@@ -2,13 +2,20 @@ import serial
 import utils
 
 _required_arguments = ["port", "type"]
+_optional_arguments = {"verbose_printing": 0}
 
 
 class powercube:
     def __init__(self, config_dict):
         utils.argument_checker(
-            config_dict, _required_arguments, source_func="powercube"
+            config_dict,
+            _required_arguments,
+            _optional_arguments,
+            source_func="powercube",
         )
+        config_dict = utils.optional_arguments_merge(config_dict, _optional_arguments)
+        self.verbose = config_dict["verbose_printing"]
+
         self.port = str(config_dict["port"])
         print(
             "Now this stuff is seriously untested. Please reconsider using this file."
@@ -16,6 +23,7 @@ class powercube:
 
     def __enter__(self):
         self.open()
+        return self
 
     def __exit__(self, exception_type, exception_value, exception_traceback):
         self.close()

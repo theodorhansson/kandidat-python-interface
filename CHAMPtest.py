@@ -25,21 +25,6 @@ class PhotonicTest(unittest.TestCase):
         lower_dict = utils.dict_2_lower(test_dict)
         self.assertEqual(lower_dict, correct_dict)
 
-    def test_signed_bits2int(self):
-        test_cases = [
-            ("11", -1),
-            ("10001", -15),
-            ("100001", -31),
-            (str(bin(0xE9A2))[2:], -5726),
-            ("00011", 3),
-        ]
-
-        for case in test_cases:
-            test_value = case[0]
-            test_reference = case[1]
-            answer = utils.signed_bits2int(test_value)
-            self.assertEqual(test_reference, answer, msg=f"{test_reference}")
-
     def test_argument_checker(self):
         required = ["value1", "value2"]
         optional = {
@@ -84,7 +69,118 @@ class PhotonicTest(unittest.TestCase):
             "value2": 1,
         }
 
-        print(optional_arguments_merge(conf, opt))
+        print(utils.optional_arguments_merge(conf, opt))
+
+    def test_closest_matcher(self):
+        accepted = [0, 1, 2, 3, 4]
+
+        # query, reference
+        queries_no_arg = (
+            (1, 1),
+            (1.5, 2),
+            (0.5, 1),
+            (-100, 0),
+            (100, 4),
+        )
+
+        for query, reference in queries_no_arg:
+            answer = utils.closest_matcher(query, accepted)
+            self.assertEqual(reference, answer)
+
+        # query, reference, round_type
+        queries_args = (
+            (1, 1, "down"),
+            (1, 1, "up"),
+            (1.5, 1, "down"),
+            (1.5, 2, "up"),
+            (-100, 0, "up"),
+            (100, 4, "up"),
+            (-100, 0, "down"),
+            (100, 4, "down"),
+            (0.1, 0, "regularly"),
+            (0.9, 1, "regularly"),
+            (-100, 0, "regularly"),
+            (100, 4, "regularly"),
+        )
+
+        for query, reference, r_type in queries_args:
+            answer = utils.closest_matcher(query, accepted, round_type=r_type)
+            self.assertEqual(reference, answer, msg=(reference, answer))
+
+        # query, reference, round_type, exception trigger
+        queries_args_exception = (
+            (1, 1, "exact", False),
+            (1.5, None, "exact", True),
+            (-100, None, "exact", True),
+            (100, None, "exact", True),
+        )
+
+        for query, reference, r_type, trigger in queries_args_exception:
+            if trigger:
+                with self.assertRaises(Exception):
+                    utils.closest_matcher(query, accepted, round_type=r_type)
+            else:
+                utils.closest_matcher(query, accepted, round_type=r_type)
+
+    def test_interval_2_points(self):
+        # specification, points/result
+        case_list = (
+            ([[0, 1, 10]], [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]]),
+            ([0, 1, 10], [[0], [1], [10]]),
+            (
+                [0, 1, 10, [0, 1, 10]],
+                [[0], [1], [10], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]],
+            ),
+            (
+                [[0, 0.9, 10]],
+                [[0, 0.9, 1.8, 2.7, 3.6, 4.5, 5.4, 6.3, 7.2, 8.1, 9, 9.9, 10]],
+            ),
+            (
+                [[0, 0.9, 10], 69],
+                [[0, 0.9, 1.8, 2.7, 3.6, 4.5, 5.4, 6.3, 7.2, 8.1, 9, 9.9, 10], [69]],
+            ),
+            (
+                [69, [0, 0.9, 10]],
+                [[69], [0, 0.9, 1.8, 2.7, 3.6, 4.5, 5.4, 6.3, 7.2, 8.1, 9, 9.9, 10]],
+            ),
+            (1, [[1]]),
+            ([[0, 1, "10"]], [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]]),
+            ([0, 1, "10"], [[0], [1], [10]]),
+        )
+
+        for case in case_list:
+            query = case[0]
+            reference = case[1]
+            answer = list(utils.interval_2_points(query))
+
+            self.assertEqual(answer, reference, msg=f"{case=}")
+
+        case_list_exception = (
+            None,
+            [[1]],
+            [[1, 2]],
+            [[1, 2, 3, 4]],
+            [],
+            [[1, 2, "sup bro"]],
+        )
+
+        for exc_case in case_list_exception:
+            with self.assertRaises(TypeError):
+                self.test_interval_2_points(exc_case)
+
+    def test_number_recaster(self):
+        cases = (
+            (1, 1),
+            ("1", 1),
+            ([1, "2"], [1, 2]),
+            ((1, "2"), (1, 2)),
+        )
+
+        for case in cases:
+            query = case[0]
+            reference = case[1]
+            answer = utils.list_number_recaster(query)
+            self.assertEqual(reference, answer)
 
 
 if __name__ == "__main__":

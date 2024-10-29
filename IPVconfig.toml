@@ -6,26 +6,25 @@ Save_folder = "c:/LABDATA"
 DC_unit = "keithley2400"    # Refers to the [] below only
 P_unit = "INT_sphere"
 V_max = 5
-Rollover_threshold = 0.8  # Stops measurement when power < rollover_threshold * maxpower
-Rollover_min = 1       # Doesn't do rollover check on power values lower than this
-Current = [[0, 0.01, 1], [1, 0.5, 8]]  #mA [min, step, max]
-Plot_interval = 20  #Update plot every nth measurement
-
-[keithley2400]  
-type = "keithley2400"   # The specific type of unit
-GPIB_address = "24" 
 Current = [[1, 0.1, 5], [5, 0.5, 15]]  # mA [min, step, max]
 
 # Optional arguments
 Rollover_threshold = 0  # Stops measurement when power < rollover_threshold * maxpower
 Rollover_min = 0        # Doesn't do rollover check on power values lower than this
+Offset_background = 10  # Number of times to measure background and offset
 Plot_interval = 20      # Update plot every nth measurement
-Verbose_printing = 0    # Flag for printing
 Keep_plot = 0           # To keep plot after measurement is done
+Verbose_printing = 0    # Flag for printing
 
 [keithley2400]  
 Type = "keithley2400"   # The specific type of unit
 GPIB_address = "24"
+
+[INT_sphere]
+Type = "ophir_IS6_D_UV"
+Range = 2
+Min_measure_time = 0.2  # How long to wait between new data to arrive from sphere
+Wavelength = 5
 
 [powercube]
 Type = "powercube"
